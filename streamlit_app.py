@@ -1,56 +1,64 @@
 import streamlit as st
-from openai import OpenAI
+from F4_dialog_system_Final import load_restaurants, run_dialog_system, train_or_load_classifier, DialogContext, state_transition, formal_templates, informal_templates
+import os
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
-)
+# --- Load data ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+restaurant_file = os.path.join(BASE_DIR, "restaurant_info.csv")
+restaurants = load_restaurants(restaurant_file)
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+food_vocab = sorted(set(r["food"] for r in restaurants if r["food"]))
+area_vocab = sorted(set(r["area"] for r in restaurants if r["area"]))
+price_vocab = sorted(set(r["price"] for r in restaurants if r["price"]))
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+# --- Streamlit page config ---
+st.set_page_config(page_title="Restaurant Chatbot", page_icon="🍽️", layout="centered")
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+st.title("🍽️ Restaurant Recommendation Chatbot")
+st.write("Chat with a simple restaurant recommendation system.")
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# Initialize session state
+if "context" not in st.session_state:
+    st.session_state.context = DialogContext()
+    st.session_state.use_formal = False
+    st.session_state.allow_ack = False
+    st.session_state.ack_prob = 0.7
+    st.session_state.clf = train_or_load_classifier(retrain=False)
+    st.session_state.templates = informal_templates
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+# Sidebar settings
+st.sidebar.header("⚙️ Settings")
+st.session_state.use_formal = st.sidebar.checkbox("Use formal language", value=False)
+st.session_state.allow_ack = st.sidebar.checkbox("Allow acknowledgements", value=False)
+ack_prob = st.sidebar.slider("Acknowledgement probability", 0.0, 1.0, 0.7)
+st.session_state.ack_prob = ack_prob
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+st.session_state.templates = formal_templates if st.session_state.use_formal else informal_templates
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
+# Chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = [{"role": "assistant", "content": st.session_state.templates["welcome"]}]
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+# Display chat messages
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# Chat input
+if prompt := st.chat_input("Say something..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    sys_resp, st.session_state.context = state_transition(
+        st.session_state.context,
+        prompt,
+        st.session_state.clf,
+        restaurants,
+        food_vocab,
+        area_vocab,
+        price_vocab,
+        first_pref_suggestion=True,
+        ask_confirm_each=False,
+        templates=st.session_state.templates,
+        allow_restart=True
+    )
+    st.session_state.messages.append({"role": "assistant", "content": sys_resp})
+    st.rerun()
