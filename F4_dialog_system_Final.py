@@ -17,6 +17,7 @@ from sklearn.pipeline import Pipeline
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+BASE_DIR = os.path.dirname(__file__)
 # Rule-based patterns for dialog act classification
 # Each pattern is a regex that matches specific dialog acts
 rules = {
@@ -41,10 +42,10 @@ rules = {
 def rule_based_predict(utterance: str):
     """
     Predict dialog act using rule-based pattern matching.
-    
+
     Args:
         utterance (str): User input to classify
-        
+
     Returns:
         tuple: (predicted_label, matched_pattern) or ("inform", None) if no match
     """
@@ -58,16 +59,22 @@ def rule_based_predict(utterance: str):
 
 # Dataset loading / deduplication
 
-def load_dataset(path="dialog_acts.dat"):
+def load_dataset(path=None):
     """
     Load dialog acts dataset from file.
-    
+
     Args:
         path (str): Path to dialog acts data file
-        
+
     Returns:
         tuple: (utterances_array, labels_array)
     """
+    if path is None:
+        path = os.path.join(BASE_DIR, "dialog_acts.dat")  # 👈 Absolute path
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Dialog acts data file not found at: {path}")
+
     data = np.genfromtxt(path, dtype=str, delimiter="\n")
     labels = []
     utts = []
@@ -80,11 +87,11 @@ def load_dataset(path="dialog_acts.dat"):
 def deduplicate(utts, labels):
     """
     Remove duplicate utterances from dataset, keeping first occurrence.
-    
+
     Args:
         utts (array): Array of utterances
         labels (array): Array of corresponding labels
-        
+
     Returns:
         tuple: (deduplicated_utterances, deduplicated_labels)
     """
@@ -100,13 +107,13 @@ def deduplicate(utts, labels):
 def safe_train_test_split(X, y, test_size=0.15, random_state=42):
     """
     Safely split data into train/test sets, handling cases where stratification isn't possible.
-    
+
     Args:
         X (array): Features
         y (array): Labels
         test_size (float): Proportion of data for testing
         random_state (int): Random seed for reproducibility
-        
+
     Returns:
         tuple: (X_train, X_test, y_train, y_test)
     """
@@ -128,13 +135,13 @@ def safe_train_test_split(X, y, test_size=0.15, random_state=42):
 def train_and_eval(utts, labels, random_state=42, verbose=True):
     """
     Train and prepare machine learning models for evaluation.
-    
+
     Args:
         utts (array): Array of utterances
         labels (array): Array of corresponding labels
         random_state (int): Random seed for reproducibility
         verbose (bool): Whether to print training information
-        
+
     Returns:
         dict: Dictionary containing trained models and data splits
     """
@@ -170,7 +177,7 @@ def train_and_eval(utts, labels, random_state=42, verbose=True):
 def evaluate_systems(objs, majority_class, name="DATASET"):
     """
     Evaluate multiple classification systems and display results.
-    
+
     Args:
         objs (dict): Dictionary containing trained models and test data
         majority_class (str): Most frequent class for majority baseline
@@ -218,7 +225,7 @@ def evaluate_systems(objs, majority_class, name="DATASET"):
 def plot_results(orig_objs, dedup_objs, majority_class):
     """
     Create comparison plots of different classification systems on original vs deduplicated data.
-    
+
     Args:
         orig_objs (dict): Results from original dataset
         dedup_objs (dict): Results from deduplicated dataset
@@ -277,7 +284,7 @@ def plot_results(orig_objs, dedup_objs, majority_class):
 def save_models(prefix, objs, outdir="."):
     """
     Save trained models to disk.
-    
+
     Args:
         prefix (str): Prefix for model filenames
         objs (dict): Dictionary containing trained models
@@ -295,7 +302,7 @@ def save_models(prefix, objs, outdir="."):
 def interactive_loop(objs, majority_class):
     """
     Interactive mode for testing different classification systems.
-    
+
     Args:
         objs (dict): Dictionary containing trained models
         majority_class (str): Most frequent class for majority baseline
@@ -323,7 +330,7 @@ def interactive_loop(objs, majority_class):
 def main(save_dir=None, interactive=False):
     """
     Main function to run complete ML evaluation pipeline.
-    
+
     Args:
         save_dir (str, optional): Directory to save trained models
         interactive (bool): Whether to run interactive testing mode
@@ -447,18 +454,18 @@ informal_templates = {
 def fuzzy_match(user_word, vocab, max_threshold=0.66):
     """
     Find the best fuzzy match for a user word in a vocabulary using Levenshtein distance.
-    
+
     Args:
         user_word (str): Word to match
         vocab (list): Vocabulary to search in
         max_threshold (float): Minimum similarity score required for a match
-        
+
     Returns:
         str or None: Best matching word from vocab, or None if no good match
     """
     best_match = []
     best_score = 0
-    
+
     for kw in vocab:
         dist = Levenshtein.distance(user_word.lower(), kw.lower())
         score = 1 - dist / max(len(user_word), len(kw))
@@ -467,21 +474,27 @@ def fuzzy_match(user_word, vocab, max_threshold=0.66):
             best_match = [kw]
         elif abs(score - best_score) <= 1e-2:
             best_match.append(kw)
-  
+
     if best_score < max_threshold:
         return None
     return random.choice(best_match)
 
-def load_restaurants(path: str) -> List[Dict[str, str]]:
+def load_restaurants(path=None) -> List[Dict[str, str]]:
     """
     Load restaurant data from CSV file and add random properties for rule-based reasoning.
-    
+
     Args:
         path (str): Path to restaurant CSV file
-        
+
     Returns:
         List[Dict[str, str]]: List of restaurant dictionaries with properties
     """
+    if path is None:
+        path = os.path.join(BASE_DIR, "restaurant_info.csv")  # 👈 Absolute path
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Restaurant data file not found at: {path}")
+
     restaurants = []
     with open(path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -509,13 +522,13 @@ no_pref_vocab = ["any", "whatever", "no preference", "don't care", "none"]
 def extract_preferences(utt: str, food_vocab=None, area_vocab=None, price_vocab=None):
     """
     Extract restaurant preferences from user utterance using fuzzy matching.
-    
+
     Args:
         utt (str): User utterance
         food_vocab (list, optional): Vocabulary of food types
         area_vocab (list, optional): Vocabulary of areas
         price_vocab (list, optional): Vocabulary of price ranges
-        
+
     Returns:
         dict: Dictionary of extracted preferences
     """
@@ -547,10 +560,10 @@ def extract_preferences(utt: str, food_vocab=None, area_vocab=None, price_vocab=
 def extract_additional_req(utt: str):
     """
     Extract additional requirements from user utterance.
-    
+
     Args:
         utt (str): User utterance
-        
+
     Returns:
         dict: Dictionary of additional requirements
     """
@@ -565,11 +578,11 @@ def extract_additional_req(utt: str):
 def lookup_restaurants(prefs: Dict[str, str], restaurants: List[Dict[str, str]]):
     """
     Find restaurants matching user preferences.
-    
+
     Args:
         prefs (Dict[str, str]): User preferences
         restaurants (List[Dict[str, str]]): List of all restaurants
-        
+
     Returns:
         tuple: (all_matches, first_match, remaining_matches)
     """
@@ -584,11 +597,11 @@ def lookup_restaurants(prefs: Dict[str, str], restaurants: List[Dict[str, str]])
 def train_or_load_classifier(model_path="dialog_model.pkl", retrain=False):
     """
     Train or load a dialog act classifier for the dialog system.
-    
+
     Args:
         model_path (str): Path to save/load the model
         retrain (bool): Whether to retrain even if model exists
-        
+
     Returns:
         Pipeline: Trained sklearn pipeline for dialog act classification
     """
@@ -618,11 +631,11 @@ def train_or_load_classifier(model_path="dialog_model.pkl", retrain=False):
 def apply_rules(restaurant, user_requirements={}):
     """
     Apply rule-based reasoning to infer restaurant properties and generate explanations.
-    
+
     Args:
         restaurant (dict): Restaurant data dictionary
         user_requirements (dict): User's additional requirements
-        
+
     Returns:
         list: List of reasoning messages explaining the inferences
     """
@@ -653,12 +666,12 @@ def apply_rules(restaurant, user_requirements={}):
 def update_prefs(ctx, new_prefs, ask_confirm=False):
     """
     Update dialog context with new preferences, optionally asking for confirmation.
-    
+
     Args:
         ctx (DialogContext): Current dialog context
         new_prefs (dict): New preferences to add
         ask_confirm (bool): Whether to ask user for confirmation
-        
+
     Returns:
         tuple: (updated_context, confirmation_success)
     """
@@ -667,7 +680,7 @@ def update_prefs(ctx, new_prefs, ask_confirm=False):
         print(pref_str if pref_str != "" else "no preference identified")
         if input("Are these preferences correct? (y/n): ").strip().lower() != "y":
             return ctx, False
-    
+
     ctx.preferences.update(new_prefs)
     return ctx, True
 
@@ -675,7 +688,7 @@ def state_transition(ctx: DialogContext, user_utt: str, clf, restaurants, food_v
                      first_pref_suggestion=False, ask_confirm_each=False, templates=None, allow_restart=True):
     """
     Handle state transitions in the dialog system based on user input.
-    
+
     Args:
         ctx (DialogContext): Current dialog context
         user_utt (str): User utterance
@@ -688,37 +701,37 @@ def state_transition(ctx: DialogContext, user_utt: str, clf, restaurants, food_v
         ask_confirm_each (bool): Whether to confirm each preference
         templates (dict): Response templates to use
         allow_restart (bool): Whether to allow dialog restart
-        
+
     Returns:
         tuple: (system_response, updated_context)
     """
     user_utt_lower = user_utt.lower()
     predicted_act = clf.predict([user_utt])[0]
-    
+
     if predicted_act == "goodbye":
         ctx.state_change = False
         ctx.state = State.GOODBYE
         return templates["goodbye"], ctx
-    
+
     if allow_restart and user_utt_lower in ["restart", "start over", "reset"]:
         ctx = DialogContext()
         return templates["welcome"], ctx
-    
+
     if ctx.state == State.START:
         prefs = extract_preferences(user_utt, food_vocab, area_vocab, price_vocab)
         ctx, confirmed = update_prefs(ctx, prefs, ask_confirm=ask_confirm_each)
 
         if not confirmed:
             return templates["retry"], ctx
-        
+
         ctx.state = State.ASK_PREFERENCES
         ctx.state_change = True
-        
+
     if ctx.state == State.ASK_PREFERENCES:
         if not ctx.state_change:
             # only use vocabularies of missing attributes
             missing = [slot for slot in ["food", "area", "price"] if slot not in ctx.preferences or ctx.preferences[slot] is None]
-            
+
             fv = food_vocab if "food" in missing else None
             av = area_vocab if "area" in missing and fv is None else None
             pv = price_vocab if "price" in missing and av is None else None
@@ -728,7 +741,7 @@ def state_transition(ctx: DialogContext, user_utt: str, clf, restaurants, food_v
             if not confirmed:
                 return templates["retry"], ctx
         ctx.state_change = False
-        
+
         matches, selected, remaining = lookup_restaurants(ctx.preferences, restaurants)
         if first_pref_suggestion and ctx.preferences.get("food") and not ctx.offered_suggestion:
             ctx.offered_suggestion = True
@@ -751,7 +764,7 @@ def state_transition(ctx: DialogContext, user_utt: str, clf, restaurants, food_v
         else:
             ctx.preferences = {}
             return templates["no_match"] + " " + templates["ask_prefs"], ctx
-        
+
     if ctx.state == State.ADDITIONAL_REQ:
         ctx.state_change = False
         if user_utt_lower in ["no", "none", "nothing"]:
@@ -772,11 +785,11 @@ def state_transition(ctx: DialogContext, user_utt: str, clf, restaurants, food_v
             if reason_text:
                 response += "\n" + templates["reasoning"].format(name=final_choice["name"], reason=reason_text)
             return response, ctx
-        
+
         ctx.state = State.ASK_PREFERENCES
         ctx.state_change = True
         return templates["no_match"] + " " + templates["ask_prefs"], ctx
-        
+
     if ctx.state == State.CONFIRM:
         ctx.state_change = False
         if user_utt_lower in ["yes", "yep", "sure"]:
@@ -798,7 +811,7 @@ def state_transition(ctx: DialogContext, user_utt: str, clf, restaurants, food_v
             return templates["goodbye"], ctx
         else:
             return "Please say yes if you like it, or no/another if you don’t.", ctx
-        
+
     if ctx.state == State.CONTACT_INFO:
         ctx.state_change = False
         rest = ctx.last_restaurant
@@ -812,11 +825,11 @@ def state_transition(ctx: DialogContext, user_utt: str, clf, restaurants, food_v
             return templates["goodbye"], ctx
         else:
             return templates["contact_intro"], ctx
-        
+
     if ctx.state == State.GOODBYE:
         ctx.state_change = False
         return templates["goodbye"], ctx
-    
+
     return templates["not_understood"], ctx
 
 ACK_LIST = [
@@ -858,11 +871,11 @@ def print_response(sys_res, allow_ack=False, use_formal=False, prob=0.7):
         if len(ack_list) == 0:
             ack_history.clear()
             ack_list = full_ack_list
-        
+
         selected_ack = ack_list[round(random.random() * (len(ack_list) - 1))]
         ack_history.append(selected_ack)
         response = f"{selected_ack}. {response}"
-    
+
     print(response)
 
 
@@ -877,7 +890,7 @@ def get_ack_probability(default=0.7):
         ack_prob = float(ack_prob_str)
         if 0 <= ack_prob <= 1:
             return ack_prob
-        
+
         print(f"Out of range (0–1). Using default value {default}.")
         return default
     except ValueError:
@@ -887,7 +900,7 @@ def get_ack_probability(default=0.7):
 def run_dialog_system(restaurants, food_vocab, area_vocab, price_vocab):
     """
     Run the interactive restaurant recommendation dialog system.
-    
+
     Args:
         restaurants (list): List of restaurant data
         food_vocab (list): Vocabulary of food types
@@ -920,17 +933,8 @@ def run_dialog_system(restaurants, food_vocab, area_vocab, price_vocab):
         print_response(sys_resp, allow_ack=allow_ack, use_formal=use_formal, prob=ack_prob)
 
 if __name__ == "__main__":
-    """
-    Main execution block - runs both ML evaluation and dialog system.
-    First performs ML analysis and model training, then starts the interactive dialog system.
-    """
-    # Run ML Evaluation first
-    # print("=== Running ML Evaluation ===")
-    # main(save_dir="./models", interactive=False)
-    
-    # Then run Dialog System
     print("\n=== Running Dialog System ===")
-    restaurant_file = "restaurant_info.csv"
+    restaurant_file = os.path.join(BASE_DIR, "restaurant_info.csv")  # 👈 Absolute path
     if not os.path.exists(restaurant_file):
         print(f"Error: The file '{restaurant_file}' was not found.")
     else:
