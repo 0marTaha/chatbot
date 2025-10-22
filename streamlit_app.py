@@ -41,13 +41,13 @@ if "messages" not in st.session_state:
 
 # Default config values
 defaults = {
-    "use_formal": False,
-    "allow_ack": False,
+    "use_formal": True,
+    "allow_ack": True,
     "ack_prob": 0.7,
     "first_pref_suggestion": True,
-    "ask_confirm_each": False,
+    "ask_confirm_each": True,
     "allow_restart": True,
-    "retrain_classifier": False,
+    "retrain_classifier": True,
 }
 
 for key, value in defaults.items():
