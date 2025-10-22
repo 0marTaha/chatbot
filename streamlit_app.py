@@ -42,8 +42,8 @@ if "messages" not in st.session_state:
 # Default config values
 defaults = {
     "use_formal": False,
-    "allow_ack": False,
-    "ack_prob": 0.7,
+    "allow_ack": True,
+    "ack_prob": 0.0,
     "first_pref_suggestion": True,
     "ask_confirm_each": False,
     "allow_restart": True,
