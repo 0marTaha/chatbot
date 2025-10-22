@@ -148,3 +148,14 @@ if prompt := st.chat_input("Type your message..."):
     # Display bot message
     st.session_state.messages.append({"role": "assistant", "content": sys_resp})
     st.rerun()
+
+# ---------------------------
+# 📝 Show Google Form link after conversation ends
+# ---------------------------
+if st.session_state.context.state == "goodbye":
+    st.success("✅ Thank you for chatting with me!")
+    st.write("Before you go, could you please fill out a short feedback form? 🙏")
+    st.link_button(
+        "📝 Open Feedback Form",
+        "https://docs.google.com/forms/d/e/1FAIpQLSeCidHU3piXdW4jcwtCbrZCtOdZ5MI20nB0RWAzdPfCKVqy6Q/viewform"
+    )
