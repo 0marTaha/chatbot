@@ -1,2 +1,8 @@
 streamlit
 openai
+numpy
+scikit-learn
+matplotlib
+seaborn
+joblib
+python-Levenshtein
