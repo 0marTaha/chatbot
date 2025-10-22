@@ -126,6 +126,7 @@ for msg in st.session_state.messages:
 # ---------------------------
 # 📨 User input handling
 # ---------------------------
+# 📨 User input handling
 if prompt := st.chat_input("Type your message..."):
     # Display user message
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -147,4 +148,20 @@ if prompt := st.chat_input("Type your message..."):
 
     # Display bot message
     st.session_state.messages.append({"role": "assistant", "content": sys_resp})
+
+    # If conversation ended — show feedback form
+    if st.session_state.context.state == "goodbye":
+        st.session_state.show_feedback_form = True
+
     st.rerun()
+
+# 📝 After chat: Feedback form
+if st.session_state.get("show_feedback_form", False):
+    st.divider()
+    st.success("✅ Thank you for using the chatbot!")
+    st.write("We’d love to hear your feedback. Please fill in this short form:")
+    st.markdown(
+        "[👉 Fill in the Google Form](https://docs.google.com/forms/d/e/1FAIpQLSeCidHU3piXdW4jcwtCbrZCtOdZ5MI20nB0RWAzdPfCKVqy6Q/viewform)",
+        unsafe_allow_html=True
+    )
+
