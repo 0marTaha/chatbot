@@ -1,64 +1,150 @@
 import streamlit as st
-from F4_dialog_system_Final import load_restaurants, run_dialog_system, train_or_load_classifier, DialogContext, state_transition, formal_templates, informal_templates
 import os
+from F4_dialog_system_Final import (
+    load_restaurants,
+    train_or_load_classifier,
+    DialogContext,
+    state_transition,
+    formal_templates,
+    informal_templates,
+)
 
-# --- Load data ---
+# ---------------------------
+# 📂 Load restaurant data
+# ---------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 restaurant_file = os.path.join(BASE_DIR, "restaurant_info.csv")
-restaurants = load_restaurants(restaurant_file)
 
+if not os.path.exists(restaurant_file):
+    st.error(f"❌ Restaurant file not found at: {restaurant_file}")
+    st.stop()
+
+restaurants = load_restaurants(restaurant_file)
 food_vocab = sorted(set(r["food"] for r in restaurants if r["food"]))
 area_vocab = sorted(set(r["area"] for r in restaurants if r["area"]))
 price_vocab = sorted(set(r["price"] for r in restaurants if r["price"]))
 
-# --- Streamlit page config ---
+# ---------------------------
+# 🌐 Page setup
+# ---------------------------
 st.set_page_config(page_title="Restaurant Chatbot", page_icon="🍽️", layout="centered")
-
 st.title("🍽️ Restaurant Recommendation Chatbot")
-st.write("Chat with a simple restaurant recommendation system.")
+st.write("Chat with an intelligent restaurant recommendation system.")
 
-# Initialize session state
+# ---------------------------
+# 🧠 Initialize session state
+# ---------------------------
 if "context" not in st.session_state:
     st.session_state.context = DialogContext()
-    st.session_state.use_formal = False
-    st.session_state.allow_ack = False
-    st.session_state.ack_prob = 0.7
-    st.session_state.clf = train_or_load_classifier(retrain=False)
-    st.session_state.templates = informal_templates
-
-# Sidebar settings
-st.sidebar.header("⚙️ Settings")
-st.session_state.use_formal = st.sidebar.checkbox("Use formal language", value=False)
-st.session_state.allow_ack = st.sidebar.checkbox("Allow acknowledgements", value=False)
-ack_prob = st.sidebar.slider("Acknowledgement probability", 0.0, 1.0, 0.7)
-st.session_state.ack_prob = ack_prob
-
-st.session_state.templates = formal_templates if st.session_state.use_formal else informal_templates
-
-# Chat history
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": st.session_state.templates["welcome"]}]
+    st.session_state.messages = []
 
-# Display chat messages
+# Default config values
+defaults = {
+    "use_formal": False,
+    "allow_ack": False,
+    "ack_prob": 0.7,
+    "first_pref_suggestion": True,
+    "ask_confirm_each": False,
+    "allow_restart": True,
+    "retrain_classifier": False,
+}
+
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+# ---------------------------
+# ⚙️ Sidebar: Settings
+# ---------------------------
+st.sidebar.header("⚙️ Chatbot Settings")
+
+st.session_state.use_formal = st.sidebar.radio(
+    "Language style",
+    options=["Informal", "Formal"],
+    index=0,
+) == "Formal"
+
+st.session_state.allow_ack = st.sidebar.checkbox(
+    "Enable acknowledgements", value=st.session_state.allow_ack
+)
+
+st.session_state.ack_prob = st.sidebar.slider(
+    "Acknowledgement probability",
+    min_value=0.0,
+    max_value=1.0,
+    value=st.session_state.ack_prob,
+    step=0.05,
+)
+
+st.session_state.first_pref_suggestion = st.sidebar.checkbox(
+    "Offer suggestion after first preference",
+    value=st.session_state.first_pref_suggestion
+)
+
+st.session_state.ask_confirm_each = st.sidebar.checkbox(
+    "Ask confirmation for each preference",
+    value=st.session_state.ask_confirm_each
+)
+
+st.session_state.allow_restart = st.sidebar.checkbox(
+    "Allow dialog restart",
+    value=st.session_state.allow_restart
+)
+
+st.session_state.retrain_classifier = st.sidebar.checkbox(
+    "Retrain dialog classifier at start",
+    value=st.session_state.retrain_classifier
+)
+
+if st.sidebar.button("🔄 Reset conversation"):
+    st.session_state.context = DialogContext()
+    st.session_state.messages = [
+        {"role": "assistant", "content": "🔄 Conversation reset. How can I help you?"}
+    ]
+    st.rerun()
+
+# ---------------------------
+# 🧠 Load classifier and templates
+# ---------------------------
+templates_choice = formal_templates if st.session_state.use_formal else informal_templates
+clf = train_or_load_classifier(retrain=st.session_state.retrain_classifier)
+
+# ---------------------------
+# 💬 Initial bot message
+# ---------------------------
+if len(st.session_state.messages) == 0:
+    st.session_state.messages.append({"role": "assistant", "content": templates_choice["welcome"]})
+
+# ---------------------------
+# 🪄 Chat display
+# ---------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Chat input
-if prompt := st.chat_input("Say something..."):
+# ---------------------------
+# 📨 User input handling
+# ---------------------------
+if prompt := st.chat_input("Type your message..."):
+    # Display user message
     st.session_state.messages.append({"role": "user", "content": prompt})
+
+    # Get bot response
     sys_resp, st.session_state.context = state_transition(
         st.session_state.context,
         prompt,
-        st.session_state.clf,
+        clf,
         restaurants,
         food_vocab,
         area_vocab,
         price_vocab,
-        first_pref_suggestion=True,
-        ask_confirm_each=False,
-        templates=st.session_state.templates,
-        allow_restart=True
+        first_pref_suggestion=st.session_state.first_pref_suggestion,
+        ask_confirm_each=st.session_state.ask_confirm_each,
+        templates=templates_choice,
+        allow_restart=st.session_state.allow_restart,
     )
+
+    # Display bot message
     st.session_state.messages.append({"role": "assistant", "content": sys_resp})
     st.rerun()
